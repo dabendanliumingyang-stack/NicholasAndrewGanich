@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Japanese-themed GUI app to capture Japanese audio and translate it to English."""
+"""Japanese-themed GUI app to capture Japanese audio and translate it to English locally."""
 
 from __future__ import annotations
 
-import os
 import platform
 import shutil
 import subprocess
@@ -22,6 +21,8 @@ WASHI = "#FFF9F0"
 INK = "#2B2D42"
 RED_ACCENT = "#C1121F"
 GREEN_ACCENT = "#2A9D8F"
+
+_MODEL_CACHE: dict[str, object] = {}
 
 
 def ensure_ffmpeg_installed() -> None:
@@ -120,28 +121,39 @@ def record_audio(output_path: Path, duration: int, device: str | None) -> None:
     subprocess.run(command, check=True)
 
 
-def translate_to_english(audio_path: Path) -> str:
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise RuntimeError("Set OPENAI_API_KEY before running this app.")
+def _load_local_model(model_size: str):
+    try:
+        import whisper
+    except ImportError as exc:
+        raise RuntimeError(
+            "Missing dependency 'openai-whisper'. Install with: pip install openai-whisper"
+        ) from exc
 
-    from openai import OpenAI
+    if model_size not in _MODEL_CACHE:
+        _MODEL_CACHE[model_size] = whisper.load_model(model_size)
+    return _MODEL_CACHE[model_size]
 
-    client = OpenAI()
-    with audio_path.open("rb") as audio_file:
-        response = client.audio.translations.create(model="whisper-1", file=audio_file)
-    return response.text.strip()
+
+def translate_to_english(audio_path: Path, model_size: str) -> str:
+    model = _load_local_model(model_size)
+    result = model.transcribe(str(audio_path), task="translate", language="ja")
+    text = result.get("text", "").strip()
+    if not text:
+        raise RuntimeError("No translated text was produced.")
+    return text
 
 
 class TranslatorGUI:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(APP_TITLE)
-        self.root.geometry("820x620")
+        self.root.geometry("860x650")
         self.root.configure(bg=WASHI)
 
         self.input_file_var = tk.StringVar()
         self.device_var = tk.StringVar()
         self.duration_var = tk.StringVar(value="15")
+        self.model_var = tk.StringVar(value="base")
         self.status_var = tk.StringVar(value="準備完了 / Ready")
 
         self._build_style()
@@ -156,7 +168,6 @@ class TranslatorGUI:
 
         style.configure("Title.TLabel", background=SAKURA, foreground=INK, font=("Meiryo", 18, "bold"))
         style.configure("Header.TLabel", background=WASHI, foreground=INK, font=("Meiryo", 11, "bold"))
-        style.configure("Body.TLabel", background=WASHI, foreground=INK, font=("Meiryo", 10))
         style.configure("Main.TButton", font=("Meiryo", 10, "bold"), padding=8)
 
     def _build_layout(self) -> None:
@@ -181,19 +192,23 @@ class TranslatorGUI:
         ttk.Label(settings, text="録音秒数 (Duration)", style="Header.TLabel").grid(row=0, column=0, sticky="w", padx=6, pady=6)
         ttk.Entry(settings, textvariable=self.duration_var, width=12).grid(row=0, column=1, sticky="w", padx=6, pady=6)
 
+        ttk.Label(settings, text="Whisperモデル", style="Header.TLabel").grid(row=0, column=2, sticky="e", padx=6, pady=6)
+        model_menu = ttk.Combobox(settings, textvariable=self.model_var, values=["tiny", "base", "small", "medium", "large"], width=10, state="readonly")
+        model_menu.grid(row=0, column=3, sticky="w", padx=6, pady=6)
+
         ttk.Label(settings, text="入力デバイス (optional)", style="Header.TLabel").grid(row=1, column=0, sticky="w", padx=6, pady=6)
-        ttk.Entry(settings, textvariable=self.device_var, width=52).grid(row=1, column=1, sticky="we", padx=6, pady=6, columnspan=2)
+        ttk.Entry(settings, textvariable=self.device_var, width=52).grid(row=1, column=1, sticky="we", padx=6, pady=6, columnspan=3)
 
         ttk.Label(settings, text="音声ファイル (optional)", style="Header.TLabel").grid(row=2, column=0, sticky="w", padx=6, pady=6)
-        ttk.Entry(settings, textvariable=self.input_file_var, width=52).grid(row=2, column=1, sticky="we", padx=6, pady=6)
-        ttk.Button(settings, text="参照 Browse", style="Main.TButton", command=self._choose_file).grid(row=2, column=2, padx=6, pady=6)
+        ttk.Entry(settings, textvariable=self.input_file_var, width=52).grid(row=2, column=1, sticky="we", padx=6, pady=6, columnspan=2)
+        ttk.Button(settings, text="参照 Browse", style="Main.TButton", command=self._choose_file).grid(row=2, column=3, padx=6, pady=6)
 
         settings.grid_columnconfigure(1, weight=1)
 
         button_row = tk.Frame(container, bg=WASHI)
         button_row.pack(fill="x", pady=(12, 8))
 
-        record_btn = tk.Button(
+        tk.Button(
             button_row,
             text="録音して翻訳 / Record + Translate",
             bg=RED_ACCENT,
@@ -203,10 +218,9 @@ class TranslatorGUI:
             padx=12,
             pady=8,
             command=self._run_record_and_translate,
-        )
-        record_btn.pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(0, 8))
 
-        file_btn = tk.Button(
+        tk.Button(
             button_row,
             text="ファイルを翻訳 / Translate File",
             bg=GREEN_ACCENT,
@@ -216,8 +230,7 @@ class TranslatorGUI:
             padx=12,
             pady=8,
             command=self._run_file_translate,
-        )
-        file_btn.pack(side="left")
+        ).pack(side="left")
 
         output_frame = tk.LabelFrame(
             container,
@@ -240,7 +253,7 @@ class TranslatorGUI:
         )
         self.output_box.pack(fill="both", expand=True)
 
-        status_bar = tk.Label(
+        tk.Label(
             self.root,
             textvariable=self.status_var,
             anchor="w",
@@ -249,8 +262,7 @@ class TranslatorGUI:
             padx=12,
             pady=6,
             font=("Meiryo", 9),
-        )
-        status_bar.pack(fill="x", side="bottom")
+        ).pack(fill="x", side="bottom")
 
     def _choose_file(self) -> None:
         file_path = filedialog.askopenfilename(
@@ -267,8 +279,7 @@ class TranslatorGUI:
         self._run_async(self._file_translate_worker)
 
     def _run_async(self, worker) -> None:
-        thread = threading.Thread(target=worker, daemon=True)
-        thread.start()
+        threading.Thread(target=worker, daemon=True).start()
 
     def _record_and_translate_worker(self) -> None:
         try:
@@ -277,9 +288,10 @@ class TranslatorGUI:
                 raise ValueError("Duration must be greater than 0.")
         except ValueError as exc:
             self._set_status(f"エラー / Error: {exc}")
-            messagebox.showerror("Invalid Duration", str(exc))
+            self._show_error("Invalid Duration", str(exc))
             return
 
+        model_size = self.model_var.get().strip() or "base"
         device = self.device_var.get().strip() or None
 
         self._set_status("録音中... / Recording...")
@@ -287,11 +299,11 @@ class TranslatorGUI:
             with tempfile.TemporaryDirectory() as tmp:
                 audio_path = Path(tmp) / "captured_audio.wav"
                 record_audio(audio_path, duration, device)
-                self._set_status("翻訳中... / Translating...")
-                translation = translate_to_english(audio_path)
+                self._set_status("翻訳中... / Translating locally...")
+                translation = translate_to_english(audio_path, model_size)
         except Exception as exc:
             self._set_status(f"失敗 / Failed: {exc}")
-            messagebox.showerror("Translation Error", str(exc))
+            self._show_error("Translation Error", str(exc))
             return
 
         self._show_translation(translation)
@@ -300,31 +312,41 @@ class TranslatorGUI:
     def _file_translate_worker(self) -> None:
         file_value = self.input_file_var.get().strip()
         if not file_value:
-            messagebox.showwarning("Missing File", "Please choose an audio file first.")
+            self._show_warning("Missing File", "Please choose an audio file first.")
             return
 
         audio_path = Path(file_value)
         if not audio_path.exists():
-            messagebox.showerror("Missing File", f"File not found: {audio_path}")
+            self._show_error("Missing File", f"File not found: {audio_path}")
             return
 
-        self._set_status("翻訳中... / Translating...")
+        model_size = self.model_var.get().strip() or "base"
+        self._set_status("翻訳中... / Translating locally...")
         try:
-            translation = translate_to_english(audio_path)
+            translation = translate_to_english(audio_path, model_size)
         except Exception as exc:
             self._set_status(f"失敗 / Failed: {exc}")
-            messagebox.showerror("Translation Error", str(exc))
+            self._show_error("Translation Error", str(exc))
             return
 
         self._show_translation(translation)
         self._set_status("完了 / Done")
 
     def _show_translation(self, text: str) -> None:
+        self.root.after(0, self._render_translation, text)
+
+    def _render_translation(self, text: str) -> None:
         self.output_box.delete("1.0", tk.END)
         self.output_box.insert(tk.END, text)
 
     def _set_status(self, status: str) -> None:
         self.root.after(0, lambda: self.status_var.set(status))
+
+    def _show_error(self, title: str, message: str) -> None:
+        self.root.after(0, lambda: messagebox.showerror(title, message))
+
+    def _show_warning(self, title: str, message: str) -> None:
+        self.root.after(0, lambda: messagebox.showwarning(title, message))
 
 
 def main() -> int:

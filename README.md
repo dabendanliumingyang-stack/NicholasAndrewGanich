@@ -1,19 +1,19 @@
 # NicholasAndrewGanich
 
-## Japanese-Themed Audio Translator GUI
+## Japanese-Themed Audio Translator GUI (No API Key)
 
-This project now includes a **Japanese-themed desktop GUI** app:
+This project includes a **Japanese-themed desktop GUI** app:
 
 - File: `translate_japanese_audio.py`
-- Purpose: Capture Japanese audio from your computer and translate it into English.
+- Purpose: Capture Japanese audio from your computer and translate it into English
+- Translation mode: **Local Whisper model** (no OpenAI API key required)
 
 ## Requirements
 
 - Python 3.9+
 - `ffmpeg` installed and available in `PATH`
-- OpenAI Python package:
-  - `pip install openai`
-- `OPENAI_API_KEY` environment variable set
+- Local Whisper package:
+  - `pip install openai-whisper`
 
 ## Run
 
@@ -23,17 +23,12 @@ python3 translate_japanese_audio.py
 
 ## How to use in the app
 
-1. **録音して翻訳 / Record + Translate**
-   - Set duration (seconds).
-   - (Optional) set your device name.
-   - Click the red button to record system audio and translate.
-
-2. **ファイルを翻訳 / Translate File**
-   - Pick an audio file with Browse.
-   - Click the green button to translate the selected file.
+1. Pick a Whisper model (`tiny`, `base`, `small`, `medium`, `large`).
+2. Use **録音して翻訳 / Record + Translate** for live capture.
+3. Or use **ファイルを翻訳 / Translate File** for an existing audio file.
 
 ## Notes
 
 - Linux can auto-detect PulseAudio monitor sources.
 - macOS and Windows may need a manual audio device value.
-- The OpenAI API key is required for translation.
+- First-time model load may take longer while model weights download/cache.
