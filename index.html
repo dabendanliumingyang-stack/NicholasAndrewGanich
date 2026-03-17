@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cursed Calculator</title>
+  <style>
+    :root {
+      --bg: #f4f4f4;
+      --panel: #ffffff;
+      --text: #111;
+      --accent: #3273dc;
+      --danger: #8b0000;
+      --shadow: rgba(0, 0, 0, 0.18);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 20% 20%, #ffffff, #dedede 60%, #cacaca 100%);
+      color: var(--text);
+      overflow: hidden;
+      transition: background 500ms ease;
+    }
+
+    .calculator {
+      width: min(360px, 92vw);
+      background: var(--panel);
+      border-radius: 16px;
+      box-shadow: 0 18px 35px var(--shadow);
+      padding: 1rem;
+      position: relative;
+      z-index: 3;
+      transition: all 450ms ease;
+    }
+
+    .brand {
+      margin: 0 0 0.6rem;
+      letter-spacing: 0.12em;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: #555;
+    }
+
+    .screen {
+      width: 100%;
+      border: none;
+      border-radius: 12px;
+      background: #f2f5f9;
+      color: #111;
+      text-align: right;
+      padding: 1rem 0.8rem;
+      font-size: 1.9rem;
+      margin-bottom: 0.8rem;
+      font-family: "Consolas", "Courier New", monospace;
+      min-height: 70px;
+      box-shadow: inset 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.6rem;
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      padding: 0.8rem 0;
+      cursor: pointer;
+      background: #eef2f8;
+      color: #1f1f1f;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      transition: transform 100ms ease, filter 250ms ease;
+    }
+
+    button:active { transform: translateY(1px) scale(0.98); }
+
+    .op { background: #dce8ff; color: #1b3d71; font-weight: 600; }
+    .equal { background: var(--accent); color: #fff; font-weight: 700; }
+    .wide { grid-column: span 2; }
+
+    .haunted-layer,
+    .flash,
+    .sigil,
+    .ghost {
+      pointer-events: none;
+      opacity: 0;
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      transition: opacity 400ms ease;
+    }
+
+    .haunted-layer {
+      background:
+        repeating-linear-gradient(0deg, rgba(255,0,0,0.12) 0 2px, rgba(0,0,0,0.22) 2px 4px),
+        radial-gradient(circle at 50% 50%, rgba(102,0,0,0.8) 0 32%, rgba(0,0,0,0.92) 68%),
+        linear-gradient(115deg, rgba(255,255,255,0.16), transparent 40%);
+      mix-blend-mode: screen;
+      animation: flicker 130ms infinite steps(2, jump-none);
+    }
+
+    .sigil {
+      z-index: 1;
+      margin: auto;
+      width: min(72vmin, 520px);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, rgba(255,0,0,0.5), transparent 40%),
+        conic-gradient(from 0deg,
+          rgba(255,0,0,0.8) 0 8%, transparent 8% 16%, rgba(255,0,0,0.8) 16% 24%, transparent 24% 32%,
+          rgba(255,0,0,0.8) 32% 40%, transparent 40% 48%, rgba(255,0,0,0.8) 48% 56%, transparent 56% 64%,
+          rgba(255,0,0,0.8) 64% 72%, transparent 72% 80%, rgba(255,0,0,0.8) 80% 88%, transparent 88% 96%, rgba(255,0,0,0.8) 96%);
+      border: 2px solid rgba(255, 130, 130, 0.8);
+      box-shadow: 0 0 50px rgba(255,0,0,0.55);
+      animation: pulse 1500ms infinite ease-in-out;
+    }
+
+    .ghost {
+      background:
+        radial-gradient(ellipse at center, rgba(255,0,0,0.22), transparent 48%),
+        url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 320"><g fill="none" stroke="%23ff1f1f" stroke-width="8"><ellipse cx="170" cy="160" rx="92" ry="118"/><ellipse cx="350" cy="160" rx="92" ry="118"/></g><g fill="%23000"><circle cx="170" cy="150" r="34"/><circle cx="350" cy="150" r="34"/></g><g fill="%23ff0000"><circle cx="170" cy="150" r="14"/><circle cx="350" cy="150" r="14"/></g><path d="M120 245 Q260 310 400 245" stroke="%23ff1f1f" stroke-width="10" fill="none"/></svg>') center/70% no-repeat;
+      mix-blend-mode: screen;
+      animation: drift 4s infinite ease-in-out;
+      z-index: 4;
+    }
+
+    .flash {
+      background: radial-gradient(circle, rgba(255,255,255,0.6), rgba(255,0,0,0.45), rgba(0,0,0,0.92));
+      z-index: 5;
+      animation: strobe 700ms infinite;
+    }
+
+    body.cursed {
+      background: #050000;
+      color: #ffe3e3;
+    }
+
+    body.cursed .calculator {
+      background: rgba(18, 0, 0, 0.85);
+      border: 2px solid rgba(220, 30, 30, 0.95);
+      box-shadow: 0 0 30px rgba(220,0,0,0.65), 0 0 90px rgba(255,0,0,0.35);
+      transform: rotate(-0.25deg);
+      animation: glitch 180ms infinite steps(2, end);
+    }
+
+    body.cursed .brand {
+      color: #ff7a7a;
+      text-shadow: 0 0 8px #f00;
+    }
+
+    body.cursed .screen {
+      background: #100;
+      color: #ff2121;
+      text-shadow: 0 0 6px rgba(255,0,0,0.9);
+      box-shadow: inset 0 0 10px rgba(255,0,0,0.35);
+      border: 1px solid #4d0000;
+    }
+
+    body.cursed button {
+      background: #260404;
+      color: #ffd7d7;
+      box-shadow: 0 0 14px rgba(255,0,0,0.35);
+      border: 1px solid #581111;
+    }
+
+    body.cursed .op,
+    body.cursed .equal {
+      background: #790202;
+      color: #fff;
+    }
+
+    body.cursed .haunted-layer,
+    body.cursed .flash,
+    body.cursed .sigil,
+    body.cursed .ghost {
+      opacity: 1;
+    }
+
+    @keyframes glitch {
+      0% { transform: translate(0, 0) skew(0deg); }
+      25% { transform: translate(-2px, 1px) skew(-0.6deg); }
+      50% { transform: translate(2px, -1px) skew(0.5deg); }
+      75% { transform: translate(-1px, -1px) skew(-0.3deg); }
+      100% { transform: translate(1px, 1px) skew(0.2deg); }
+    }
+
+    @keyframes flicker { 50% { filter: contrast(120%) brightness(114%); } }
+    @keyframes pulse { 50% { transform: scale(1.03); filter: hue-rotate(8deg); } }
+    @keyframes drift { 50% { transform: translateY(-8px) scale(1.02); } }
+    @keyframes strobe { 50% { opacity: 0.45; } }
+  </style>
+</head>
+<body>
+  <div class="sigil"></div>
+  <div class="haunted-layer"></div>
+  <div class="ghost"></div>
+  <div class="flash"></div>
+
+  <main class="calculator" aria-label="calculator">
+    <p class="brand">Normal Calculator v1.0</p>
+    <output class="screen" id="screen">0</output>
+    <section class="buttons">
+      <button data-action="clear" class="op">C</button>
+      <button data-action="delete" class="op">⌫</button>
+      <button data-value="%" class="op">%</button>
+      <button data-value="/" class="op">÷</button>
+
+      <button data-value="7">7</button>
+      <button data-value="8">8</button>
+      <button data-value="9">9</button>
+      <button data-value="*" class="op">×</button>
+
+      <button data-value="4">4</button>
+      <button data-value="5">5</button>
+      <button data-value="6">6</button>
+      <button data-value="-" class="op">−</button>
+
+      <button data-value="1">1</button>
+      <button data-value="2">2</button>
+      <button data-value="3">3</button>
+      <button data-value="+" class="op">+</button>
+
+      <button data-value="0" class="wide">0</button>
+      <button data-value=".">.</button>
+      <button data-action="equals" class="equal">=</button>
+    </section>
+  </main>
+
+  <script>
+    const screen = document.getElementById('screen');
+    const buttons = document.querySelector('.buttons');
+    let expression = '';
+    let cursed = false;
+    let audioCtx;
+    let audioNodes = [];
+
+    const updateScreen = (value) => {
+      screen.textContent = value || '0';
+    };
+
+    const toCalculable = (exp) => exp.replace(/÷/g, '/').replace(/×/g, '*');
+
+    const playCursedAudio = () => {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioNodes.length) return;
+
+      const master = audioCtx.createGain();
+      master.gain.value = 0.06;
+      master.connect(audioCtx.destination);
+
+      const low = audioCtx.createOscillator();
+      low.type = 'sawtooth';
+      low.frequency.value = 53;
+
+      const mid = audioCtx.createOscillator();
+      mid.type = 'triangle';
+      mid.frequency.value = 93;
+
+      const lfo = audioCtx.createOscillator();
+      const lfoGain = audioCtx.createGain();
+      lfo.frequency.value = 0.6;
+      lfoGain.gain.value = 25;
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 800;
+      filter.Q.value = 14;
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(filter.frequency);
+      low.connect(filter);
+      mid.connect(filter);
+      filter.connect(master);
+
+      const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 1.4, audioCtx.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      }
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = noiseBuffer;
+      noise.loop = true;
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.value = 0.018;
+      noise.connect(noiseGain);
+      noiseGain.connect(master);
+
+      [low, mid, lfo, noise].forEach(node => node.start());
+      audioNodes = [low, mid, lfo, noise, master];
+    };
+
+    const enterCursedMode = () => {
+      if (cursed) return;
+      cursed = true;
+      document.body.classList.add('cursed');
+      playCursedAudio();
+      screen.textContent = '666 // HE HAS ANSWERED';
+    };
+
+    buttons.addEventListener('click', (event) => {
+      const target = event.target.closest('button');
+      if (!target) return;
+
+      const action = target.dataset.action;
+      const value = target.dataset.value;
+
+      if (action === 'clear') {
+        expression = '';
+        updateScreen(expression);
+        return;
+      }
+
+      if (action === 'delete') {
+        expression = expression.slice(0, -1);
+        updateScreen(expression);
+        return;
+      }
+
+      if (action === 'equals') {
+        if (!expression) return;
+        try {
+          const result = Function(`"use strict"; return (${toCalculable(expression)})`)();
+          if (Number.isFinite(result)) {
+            expression = String(result);
+            updateScreen(expression);
+            if (Number(result) === 666) {
+              enterCursedMode();
+            }
+          } else {
+            updateScreen('Error');
+          }
+        } catch {
+          updateScreen('Error');
+        }
+        return;
+      }
+
+      expression += value;
+      updateScreen(expression);
+    });
+
+    window.addEventListener('keydown', (event) => {
+      if (/^[0-9+\-*/%.]$/.test(event.key)) {
+        expression += event.key;
+        updateScreen(expression);
+      } else if (event.key === 'Enter') {
+        document.querySelector('[data-action="equals"]').click();
+      } else if (event.key === 'Backspace') {
+        expression = expression.slice(0, -1);
+        updateScreen(expression);
+      } else if (event.key.toLowerCase() === 'c') {
+        expression = '';
+        updateScreen(expression);
+      }
+    });
+  </script>
+</body>
+</html>
